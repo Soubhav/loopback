@@ -1,169 +1,472 @@
-# PRD: Loopback v1 — AI Voice Agent SDK
+# PRD: Loopback v1 — AI Voice Agent Platform
+
+> **Status:** Backend ~80% complete. Frontend not yet built (placeholder only). Last updated: 2026-06-02.
+
+---
 
 ## Problem Statement
 
-Building AI-powered voice call experiences today requires stitching together telephony providers, real-time audio infrastructure, speech-to-text, text-to-speech, and LLM orchestration — each from different vendors, with no unified interface. Existing platforms like Vapi or Bland.ai abstract this away but trap developers inside a SaaS model: you rent their infrastructure, follow their constraints, and pay their margins. There is no open, embeddable SDK that lets developers own the full voice agent stack while keeping the integration surface minimal.
+Building AI-powered voice call experiences today requires stitching together telephony providers, real-time audio infrastructure, speech-to-text, text-to-speech, and LLM orchestration — each from different vendors, with no unified interface. Existing platforms like Vapi or Bland.ai abstract this away but trap developers inside a SaaS model: you rent their infrastructure, follow their constraints, and pay their margins.
 
 Beyond infrastructure, there is a second problem: AI voice agents have no natural guardrails. Without a structured way to scope a call to a specific agenda, agents go off-topic, hallucinate, or fail to cover what matters. There is no standard pattern for turning a document — a project brief, a CSAT guide, a research agenda — into a bounded, purposeful conversation.
 
+A third problem: the output of a voice call is unstructured. A transcript is not actionable. Leaders and operators need structured outcomes — dispositions, sentiment, agenda coverage — that can feed directly into downstream systems and decisions.
+
+---
+
 ## Solution
 
-Loopback is an open-source Python SDK that makes it trivial to run structured AI voice calls. The developer provides a document (the call's agenda and context) and a phone number. Loopback pre-distills the document into a structured call guide using Claude, initiates an outbound call via Twilio, runs a real-time voice conversation using LiveKit with Deepgram (STT) and Cartesia (TTS), and returns a structured JSON summary when the call ends.
+Loopback is a hosted SaaS platform with an MCP server entry point that makes it trivial to run structured AI voice calls. The user signs up, gets an API key, and connects their AI coding environment (Claude Code, Cursor) to the hosted MCP server using a Bearer token. From there, they create voice agent profiles, trigger outbound calls, and receive structured call records — without ever leaving their AI control room.
 
-Claude Code acts as the control room — triggering calls and receiving output via an MCP server. The SDK is fully BYOK (Bring Your Own Keys): developers supply their own credentials for each service and own their infrastructure entirely.
+Loopback manages all infrastructure (telephony via Twilio + LiveKit SIP, real-time voice via OpenAI Realtime / Ultravox / LiveKit Inference, and call lifecycle tracking). Power users can bring their own LiveKit credentials and SIP trunks (BYOK).
 
-The first validated use case is CSAT calls: after a project delivery, Loopback calls customers, collects structured feedback against a project brief, and returns sentiment, agenda coverage, and a summary — ready to act on.
+The first validated use case is CSAT calls: after a project delivery, Loopback calls customers, collects structured feedback against a project brief, and returns sentiment, agenda coverage, disposition, and a summary — ready to act on.
+
+---
+
+## Core Design Principles
+
+- **Sell outcomes, not minutes** — pricing is based on connected calls delivered, not raw usage metrics
+- **Claude-native** — the primary interface is an AI coding environment via MCP, not a web form
+- **Structured output** — every call produces machine-readable JSON, not just a transcript
+- **Multi-tenant by default** — every user gets an organization on signup; all resources are org-scoped
+- **BYOK-ready** — power users can bring their own LiveKit credentials and SIP trunks
+
+---
 
 ## User Stories
 
-1. As a developer, I want to install Loopback with a single pip command, so that I can get started without a complex setup process.
-2. As a developer, I want to configure all service credentials via a `.env` file, so that I never have to hardcode API keys.
-3. As a developer, I want sensible defaults for all settings, so that I can make my first call with minimal configuration.
-4. As a developer, I want to pass a document path to the SDK, so that the call agenda is automatically derived from that document.
-5. As a developer, I want the SDK to pre-distill my document into a structured call guide before the call starts, so that there is no latency during the live conversation.
-6. As a developer, I want the call guide to define the agent's guardrails, so that the agent cannot go off-topic or outside the scope of my document.
-7. As a developer, I want to initiate an outbound call with a single function call (`loopback.initCall()`), so that I can trigger calls programmatically from any Python application.
-8. As a developer, I want a pre-call confirmation step that shows me the phone number, document, and voice settings before dialing, so that I can catch mistakes before the call fires.
-9. As a developer, I want to receive a session ID when a call is initiated, so that I can track and query the call programmatically.
-10. As a developer, I want to query call status using the session ID, so that I know whether a call is in progress, completed, or failed.
-11. As a developer, I want to retrieve structured JSON output after a call ends, so that I can use the results in downstream systems without parsing unstructured text.
-12. As a developer, I want the JSON output to include a call summary, agenda item coverage, sentiment, and full transcript, so that I have a complete picture of what happened.
-13. As a developer, I want agenda coverage to map each item from the call guide to whether it was covered, so that I can see exactly what was and wasn't addressed.
-14. As a developer, I want to use Loopback as an MCP server in Claude Code, so that I can trigger and receive calls directly from my AI control room.
-15. As a Claude Code user, I want native tools (`init_call`, `get_call_status`, `get_call_output`) available in my Claude Code session, so that I can orchestrate calls conversationally.
-16. As a CLI user, I want to run `loopback call --phone +1234 --doc brief.pdf` from the terminal, so that I can trigger calls without writing code.
-17. As a CLI user, I want a `loopback configure` command that walks me through credential setup, so that initial configuration is guided and error-proof.
-18. As an operator, I want the agent to use my document as its only source of truth, so that the conversation stays on-topic and professional.
-19. As an operator, I want the agent to speak naturally and handle interruptions gracefully, so that the call feels like a real conversation, not a script.
-20. As an operator, I want the agent to end the call cleanly when the agenda is complete, so that calls don't run indefinitely.
-21. As an operator running CSAT calls, I want the output to include customer sentiment per agenda item, so that I can identify specific areas of satisfaction or concern.
-22. As an operator, I want to swap TTS voice profiles in config, so that I can match the voice to my brand or use case.
-23. As an open source contributor, I want the SDK to have a clean module interface, so that I can add new telephony providers (e.g. Telenex) without touching core logic.
-24. As an open source contributor, I want the STT and TTS layers to be swappable, so that I can contribute alternative providers without rewriting the agent.
-25. As a developer building a CRM, I want to install Loopback as a dependency and call it from my existing Python app, so that I can add voice capabilities without rebuilding infrastructure.
-26. As a developer, I want all modules to have comprehensive test coverage, so that I can confidently extend the SDK without breaking existing behavior.
+1. As a developer, I want to sign up on a dashboard, get an API key, and be live in Claude Code in under 5 minutes.
+2. As a developer, I want OTP-based email verification on signup, so my account is protected.
+3. As a developer, I want to create organization-scoped voice agent profiles, so I can define reusable STT/LLM/TTS configs and prompts once and reuse them across calls.
+4. As a developer, I want to trigger a call from Claude Code with `loopback_place_call(toPhoneNumber, agentId)`, so I can place calls without leaving my workflow.
+5. As a developer, I want to receive a call ID when a call is initiated, so I can track the call programmatically.
+6. As a developer, I want to poll call status (`loopback_get_call`) and see the full call record when complete.
+7. As a developer, I want the agent's first message, persona, system/user prompts, and guardrails all configurable per voice agent profile.
+8. As a developer, I want to choose between OpenAI Realtime, Ultravox Realtime, or classic LiveKit Inference as the voice pipeline per call.
+9. As a developer, I want to browse the public DID catalog and assign a caller-ID to my outbound calls.
+10. As a developer, I want org-scoped API keys so machine workflows can authenticate without my personal JWT.
+11. As an operator, I want a dashboard that shows call history, metrics, agent profiles, and usage so I have a complete operational picture.
+12. As an operator, I want call recordings stored with a link in the dashboard so I can replay conversations.
+13. As an operator, I want structured JSON output for every call — summary, agenda coverage, sentiment, disposition, transcript — so I can build downstream automations on top of it.
+14. As an operator, I want email notification when a call completes with a short summary and a link to the dashboard.
+15. As an operator, I want no-answer and declined calls to not count against my quota.
+16. As an operator, I want to manage organization contacts so I can associate calls with known people.
+17. As an open source contributor, I want clean module interfaces so I can add new telephony or voice pipeline providers without touching core logic.
 
-## Implementation Decisions
+---
 
-### Modules
+## Onboarding Flow
 
-**`loopback.config`**
-- Loads and validates all credentials from environment variables
-- Manages default values for voice, output format, and call behavior
-- Raises clear errors on missing required credentials at startup, not mid-call
-- Single source of truth — all other modules receive config from here
+```
+1. User signs up at loopback.dev (email + password)
+2. User confirms email via OTP (6-digit code, 10-minute TTL)
+3. A default organization is created automatically on confirmation
+4. User creates an API key via dashboard or MCP tool
+5. User connects Claude Code / Cursor to the hosted MCP server:
+   Authorization: Bearer lb_<api_key>
+6. User is live — all MCP tools available in their AI environment
+```
 
-**`loopback.document`**
-- Accepts input formats: plain text, markdown, PDF
-- Uses Claude to distill the document into a structured markdown call guide
-- Call guide schema: Objective, Key Facts, Agenda Items, Guardrails, Success Criteria
-- Document size constraint for v1: 2–5 pages recommended
-- Output is a validated markdown string passed directly to the agent
+---
 
-**`loopback.agent`**
-- Built on LiveKit Agents framework (Python)
-- Connects to a LiveKit room provisioned by the orchestrator
-- Receives the compiled call guide as its system prompt
-- STT: Deepgram (streaming, real-time)
-- LLM: Claude (Anthropic API)
-- TTS: Cartesia
-- Ends the call when agenda is complete or maximum duration is reached
+## Voice Agent Profile (Schema)
 
-**`loopback.orchestrator`**
-- Entry point for initiating a call
-- Flow: validate config → distill document → provision LiveKit room → dial via Twilio → launch agent → monitor for completion → trigger output processing
-- Returns a session ID on initiation
-- Stores session state (status, transcript) in memory for v1
-
-**`loopback.output`**
-- Triggered after call ends and transcript is available
-- Uses Claude to generate: summary, per-agenda-item coverage, overall sentiment, raw transcript array
-- Returns structured JSON conforming to a fixed schema
+Voice agent profiles are the core configuration unit. They are org-scoped, created once, and reused across calls. Inline `agentConfig` on `POST /calls` merges with the stored profile (inline fields win).
 
 ```json
 {
-  "call_summary": "string",
-  "agenda_coverage": [
-    { "item": "string", "status": "covered | skipped", "response_summary": "string" }
-  ],
-  "sentiment": "positive | neutral | negative",
-  "outcome": "string",
-  "transcript": [
-    { "speaker": "agent | customer", "text": "string", "timestamp": "number" }
-  ]
+  "id": "mongo-object-id",
+  "organizationId": "mongo-object-id",
+  "createdBy": "mongo-object-id",
+  "name": "string",
+  "description": "string (optional)",
+  "runtimeConfig": {
+    "personaName": "string",
+    "firstMessage": "string",
+    "instructions": "string",
+    "systemPrompt": "string",
+    "userPrompt": "string",
+    "guardrails": ["string"],
+    "sttModel": "string",
+    "sttLanguage": "string",
+    "llmModel": "string",
+    "ttsModel": "string",
+    "ttsVoice": "string",
+    "ttsLanguage": "string",
+    "sttExtraKwargs": { "punctuate": true, "numerals": true, "smartFormat": true },
+    "llmExtraKwargs": { "temperature": 0.7, "maxTokens": 1024 },
+    "ttsExtraKwargs": { "speed": 1.0, "volume": 1.0 },
+    "preemptiveGeneration": false,
+    "disableNoiseCancellation": false,
+    "minEndpointingDelay": 0.5,
+    "maxEndpointingDelay": 2.0,
+    "useOpenAiRealtime": true,
+    "openAiRealtimeModel": "gpt-4o-realtime-preview",
+    "openAiRealtimeVoice": "alloy",
+    "useUltravoxRealtime": false,
+    "ultravoxModel": "fixie-ai/ultravox",
+    "ultravoxVoice": "Mark",
+    "ultravoxTimeExceededMessage": "string"
+  },
+  "createdAt": "timestamp",
+  "updatedAt": "timestamp"
 }
 ```
 
-**`loopback.mcp`**
-- MCP server exposing three tools to Claude Code:
-  - `init_call(phone, document_path, overrides?)` → session_id
-  - `get_call_status(session_id)` → status
-  - `get_call_output(session_id)` → JSON output
-- Started via `loopback mcp` CLI command
+Exactly one voice pipeline is active per call: `useOpenAiRealtime`, `useUltravoxRealtime`, or neither (classic LiveKit Inference). Both flags true is rejected with a 400.
 
-**`loopback.cli`**
-- Commands: `loopback call`, `loopback configure`, `loopback status`
-- `loopback call` surfaces pre-call confirmation before dialing
-- Thin wrapper around the Python SDK — no logic of its own
+---
 
-### Architecture Flow
+## MCP Tools (Claude Code / Cursor Integration)
+
+The MCP server is a TypeScript package (`mcp-server/`) hosted as a Streamable HTTP server. Clients authenticate with `Authorization: Bearer lb_<api_key>`. All tools are also available in stdio mode for local dev.
+
+| Tool | Description |
+|---|---|
+| `loopback_get_api_key_context` | Returns `organizationId` and owner for the current API key |
+| `loopback_list_organizations` | List organizations the authenticated user belongs to (JWT) |
+| `loopback_create_voice_agent` | Create an org voice agent profile |
+| `loopback_list_voice_agents` | List all voice agent profiles for the org |
+| `loopback_get_voice_agent` | Fetch one voice agent by Mongo id |
+| `loopback_list_public_phone_catalog` | List available pooled DIDs with computed E.164 |
+| `loopback_list_my_phone_numbers` | List DIDs assigned to this org |
+| `loopback_get_phone_number` | Fetch one DID by UUID code |
+| `loopback_place_call` | Place an outbound SIP call |
+| `loopback_list_calls` | List calls in the org (newest first) |
+| `loopback_get_call` | Fetch a single call by Mongo id |
+| `loopback_get_inference_models` | List available models for all three voice pipelines |
+| `loopback_create_contact` | Create an org-level contact record |
+| `loopback_list_contacts` | List contacts for the org |
+| `loopback_get_contact` | Fetch one contact by Mongo id |
+| `loopback_update_contact` | Update a contact record |
+| `loopback_delete_contact` | Delete a contact record |
+
+---
+
+## Call Output Schema
+
+```json
+{
+  "id": "mongo-object-id",
+  "livekitRoomName": "string",
+  "livekitRoomSid": "string",
+  "livekitSipParticipantId": "string",
+  "userId": "mongo-object-id",
+  "organizationId": "mongo-object-id",
+  "voiceAgentId": "mongo-object-id (optional)",
+  "toPhoneNumber": "+E.164",
+  "fromPhoneNumber": "+E.164 (optional)",
+  "status": "pending | ringing | active | completed | failed",
+  "agentConfig": { ... },
+  "startedAt": "timestamp (when callee answered)",
+  "endedAt": "timestamp",
+  "durationSeconds": "number",
+  "metadata": { ... },
+  "createdAt": "timestamp",
+  "updatedAt": "timestamp"
+}
+```
+
+> **Not yet implemented:** Post-call AI processing (call summary, agenda coverage, sentiment, disposition, full transcript array, recording URL). The `metadata` field currently captures raw agent session-end data. Structured output processing is a planned next step.
+
+---
+
+## Call Lifecycle
 
 ```
-Claude Code / CLI
-      │
-      ▼
-loopback.mcp / loopback.cli
-      │
-      ▼
-loopback.orchestrator
-      ├── loopback.document  →  Call Guide (markdown)
-      ├── Twilio             →  Outbound dial
-      └── LiveKit Room       →  loopback.agent
-                                    ├── Deepgram (STT)
-                                    ├── Claude (LLM)
-                                    └── Cartesia (TTS)
-      │
-      ▼
-loopback.output  →  JSON result  →  Claude Code / caller
+POST /organizations/:orgId/calls
+  → status: PENDING     (call record created)
+  → status: RINGING     (SIP participant dialling, phone ringing)
+  → status: ACTIVE      (callee answered, agent session live)
+  → status: COMPLETED   (callee hung up or agent ended session)
+  → status: FAILED      (SIP dial failed, TwirpError, or room never started)
 ```
 
-### Key Technical Notes
-- Twilio Media Streams connects to LiveKit via standard bridge pattern
-- Claude model: `claude-sonnet-4-6` for document distillation and post-call output processing
-- Session state is in-memory for v1 — single process assumption
-- All credentials loaded from `.env` at startup; never stored in SDK state
+LiveKit webhooks drive all status transitions. The agent posts a `session_ended` event (via `X-Webhook-Secret`) when its session closes, merging arbitrary metadata into the call record.
 
-## Testing Decisions
+---
 
-**What makes a good test:** Tests verify external behavior — inputs and outputs at module boundaries — not internal implementation details.
+## Voice Pipeline Options
 
-| Module | Test Type | What's Tested |
+The Python LiveKit worker (`agent/`) supports three mutually exclusive voice pipelines, selected per-call via dispatch metadata:
+
+| Pipeline | How to enable | Notes |
 |---|---|---|
-| `loopback.config` | Unit | Valid env loads correctly; missing keys raise specific errors; defaults applied |
-| `loopback.document` | Unit | Known input produces expected call guide structure; required schema fields always present |
-| `loopback.output` | Unit | Known transcript produces correct JSON shape; sentiment constrained to enum values |
-| `loopback.orchestrator` | Integration | Full call lifecycle against Twilio test credentials + LiveKit sandbox |
-| `loopback.agent` | Integration | Agent stays within call guide scope; ends call when agenda complete |
-| `loopback.mcp` | Integration | All three tools return correct shapes; error states surface correctly |
-| `loopback.cli` | Integration | Pre-call confirmation triggers; `configure` writes `.env` correctly |
+| **OpenAI Realtime** (default) | `useOpenAiRealtime: true` (default on) | Speech-to-speech, semantic VAD, lowest latency. Requires `OPENAI_API_KEY` on worker. |
+| **Ultravox Realtime** | `useUltravoxRealtime: true` | Bundled STT+LLM+TTS via Ultravox. Requires `ULTRAVOX_API_KEY` on worker. |
+| **LiveKit Inference** | Both flags false | Classic STT→LLM→TTS pipeline. Model selection via `sttModel`, `llmModel`, `ttsModel`. |
 
-**Framework:** pytest throughout. No mocking of core service calls in integration tests — use Twilio test credentials and LiveKit sandbox.
+---
 
-## Out of Scope
+## Architecture
+
+```
+User (Claude Code / Cursor / Dashboard)
+      │
+      ▼
+MCP Server (TypeScript — Streamable HTTP or stdio)
+  Auth: Bearer lb_<api_key> → OrganizationId resolution
+      │
+      ▼
+NestJS Backend API (TypeScript — port 4000)
+  /api/organizations/:orgId/calls       ← place call, list/get calls
+  /api/organizations/:orgId/agents      ← CRUD voice agent profiles
+  /api/organizations/:orgId/api-keys    ← manage API keys
+  /api/organizations/:orgId/contacts    ← contact records
+  /api/org/:orgId/phone                 ← DID catalog
+  /api/webhooks/livekit                 ← LiveKit server events
+  /api/webhooks/agent                   ← Python agent session events
+  /api/auth                             ← signup (OTP), login, JWT
+  /api/organizations                    ← org management
+  /api/admin                            ← AdminJS superadmin panel
+      │
+      ├── MongoDB (calls, org_voice_agents, users, organizations, api_keys, contacts, ...)
+      ├── SecretsService (per-user LiveKit BYOK creds, SIP trunk IDs)
+      └── LiveKit SDK (RoomServiceClient, SipClient, AgentDispatchClient)
+            │
+            ▼
+      LiveKit Cloud Room
+            ├── SIP Participant (Twilio outbound trunk)
+            └── Agent Participant (Python worker)
+                  ├── Pipeline: OpenAI Realtime (default)
+                  ├── Pipeline: Ultravox Realtime
+                  └── Pipeline: LiveKit Inference (STT + LLM + TTS)
+```
+
+---
+
+## Backend Modules (NestJS — TypeScript)
+
+**`auth`**
+- OTP-based email verification signup (6-digit code, 10-min TTL, `pending_signups` collection)
+- Login with bcrypt password check → JWT access + refresh tokens
+- Password reset and change flows
+- Guards: `JwtAuthGuard`, `JwtOrApiKeyGuard`, `RolesGuard`, `SuperadminOrApiKeyGuard`
+
+**`organization`**
+- Multi-tenant workspaces; default org auto-provisioned on user creation (Mongo transaction)
+- Membership roles: `owner`, `manager`
+- `ensureMember(userId, orgId)` used across all consumer modules
+- Cascade delete: removes org-scoped calls, agents, API keys, tickets, phone assignments
+
+**`agents`**
+- Org-scoped voice agent profiles (`org_voice_agents` collection)
+- Full CRUD at `/api/organizations/:orgId/agents`
+- Unique name constraint per org (409 on conflict)
+- Runtime config merged with per-call `agentConfig` at call time (inline wins)
+
+**`calls`**
+- Outbound call placement via LiveKit SIP (`SipClient.createSipParticipant`)
+- Agent dispatched via `AgentDispatchClient.createDispatch` with full runtime config in metadata
+- Webhook-driven status machine: `PENDING → RINGING → ACTIVE → COMPLETED | FAILED`
+- Per-user LiveKit credential resolution with fallback to default project creds
+
+**`webhooks`**
+- `POST /api/webhooks/livekit` — signed LiveKit server events (room/participant lifecycle)
+- `POST /api/webhooks/agent` — agent session events authenticated by `AGENT_WEBHOOK_SECRET`
+
+**`api-keys`**
+- Org-scoped API keys (`api_keys` collection)
+- `assertApiKeyOrganizationScope` enforces key → org binding on all consumer routes
+
+**`phone-numbers`**
+- DID catalog management: public pooled numbers + org-assigned private numbers
+- Operator CRUD at `/api/operator/phone` (superadmin only)
+- Consumer read at `/api/org/:orgId/phone/catalog` and `/api/org/:orgId/phone/mine`
+
+**`tickets`**
+- Phone number provisioning requests (`tickets` collection, renamed from `requests`)
+- Unique pending-reserve constraint per org
+
+**`contacts`**
+- Organization-level contact records (`contacts` collection)
+- Full CRUD at `/api/organizations/:orgId/contacts`
+- Fields: firstName, lastName, phone, countryCode, nationalNumber, email, notes, metadata
+
+**`secrets`**
+- Per-user/org credential storage
+- Resolves BYOK LiveKit API key/secret and SIP trunk ID, falls back to default env vars
+
+**`notification`**
+- Email sending for OTP verification
+- Email templates: `otp-verification.html`, `generic-notice.html`
+- Call completion emails: planned but not yet wired
+
+**`catalog`**
+- `GET /api/inference-models` — LiveKit Inference (LLM/STT/TTS), OpenAI Realtime (models/voices), Ultravox (live API or static fallback)
+- Supports type filter: `llm`, `stt`, `tts`, `openai-realtime`, `ultravox`, `realtime`
+
+**`admin`**
+- AdminJS panel for superadmin operations
+- Phone number entry, user management, org management
+
+**`config`**
+- NestJS `ConfigModule` with env validation
+
+---
+
+## Python Agent (`agent/`)
+
+The LiveKit voice worker is a Python package (`src/loopback`, exposed as `agent`) that connects to LiveKit Cloud and handles the real-time voice session.
+
+- **Prewarm**: Silero VAD loaded once per worker process
+- **Dispatch metadata**: Full `agentConfig` JSON from backend drives all runtime settings
+- **Voice pipelines**: OpenAI Realtime (default), Ultravox Realtime, LiveKit Inference
+- **Outbound flow**: Waits for SIP callee audio to be ready before starting the session
+- **Noise cancellation**: `ai_coustics` plugin (toggleable via `disableNoiseCancellation`)
+- **Session lifecycle**: POSTs `session_started` / `session_ended` events to backend webhook
+- **Sample configs**: `sample-agent-configurations/` for property listing, cold calling, etc.
+
+---
+
+## Tech Stack (Actual)
+
+| Layer | Tool |
+|---|---|
+| Telephony | Twilio (outbound SIP trunk) |
+| Real-time audio orchestration | LiveKit Cloud |
+| Voice pipeline — default | OpenAI Realtime API |
+| Voice pipeline — option 2 | Ultravox Realtime |
+| Voice pipeline — option 3 (classic) | LiveKit Inference (configurable STT/LLM/TTS) |
+| Agent runtime | Python + LiveKit Agents SDK |
+| Claude Code / Cursor integration | MCP Server (TypeScript — Streamable HTTP + stdio) |
+| Backend | NestJS (TypeScript) — port 4000 |
+| Frontend | React + Vite (TypeScript) — port 5173 (placeholder only) |
+| Database | MongoDB (Mongoose) |
+| Auth | JWT (access + refresh) + OTP email verification |
+| Admin panel | AdminJS |
+| Monorepo tooling | Turborepo + pnpm workspaces |
+| Containerization | Docker + Docker Compose (backend, frontend, agent, Mongo, Redis) |
+
+---
+
+## What's Built vs. What Remains
+
+### ✅ Implemented
+
+- Full auth flow: OTP email signup, login, JWT, password reset
+- Multi-tenant organizations with default org on signup
+- Voice agent profiles: org-scoped CRUD, runtime config, per-call merge
+- Outbound call placement via LiveKit SIP + Twilio
+- Three voice pipelines: OpenAI Realtime (default), Ultravox, LiveKit Inference
+- Call lifecycle tracking via LiveKit webhooks (pending → ringing → active → completed/failed)
+- Agent session lifecycle webhook (session_started, session_ended with metadata)
+- Org-scoped API keys for machine authentication
+- MCP server: 17 tools, hosted Streamable HTTP + stdio, Bearer token auth
+- Phone number (DID) catalog: public pooled + org-assigned
+- Phone provisioning tickets
+- Contacts module (org-scoped contact records)
+- Inference models catalog endpoint (LiveKit, OpenAI Realtime, Ultravox)
+- AdminJS superadmin panel
+- Docker Compose full-stack setup (backend + frontend + agent + Mongo + Redis)
+
+### 🚧 Not Yet Built (Frontend — highest priority)
+
+- **Dashboard home** — call metrics, sentiment trends, call volume charts, calls needing follow-up
+- **Call history** — paginated, filterable list
+- **Call detail** — summary, transcript, sentiment, disposition, recording player
+- **Agent library** — grid of saved agent profiles, create/edit/duplicate/delete
+- **Account & settings** — API key management, BYOK config, notification preferences
+- **Auth pages** — signup, login, OTP verification, password reset
+
+### 🚧 Not Yet Built (Backend)
+
+- **Post-call structured output processing** — AI-generated call summary, agenda coverage analysis, sentiment scoring, disposition inference, full transcript array (the `loopback.output` module from original design)
+- **Call completion email notifications** — notification service exists but not wired to call completion
+- **Recording storage** — S3 integration, 30-day retention, recording URL in call record
+- **Pricing / quota system** — plan-based call limits, billing rules for no-answer/partial calls
+
+---
+
+## Dashboard Pages (To Build)
+
+### Dashboard (Home)
+**Metrics (top row):**
+- Total calls this month
+- Completion rate (%)
+- Average sentiment breakdown (positive / neutral / negative)
+- Agenda completion rate (%)
+
+**Trend charts:**
+- Sentiment over time (line chart)
+- Call volume over time (bar chart)
+
+**Calls needing follow-up** — calls with negative sentiment or low agenda coverage
+
+**Recent calls** — last 10 calls with status, agent used, disposition, sentiment
+
+### Call History
+- Full paginated list of all calls
+- Filterable by: agent, status, sentiment, disposition, date range
+- Each row: phone, agent name, date, duration, disposition, sentiment
+
+### Call Detail
+- Summary, sentiment, disposition, next action
+- Agenda coverage table (item by item)
+- Full transcript (speaker-labeled, timestamped)
+- Recording player (if available, within 30-day window)
+
+### Agent Library
+- Grid of saved voice agent profiles
+- Each card: name, description, last used, total calls, avg sentiment
+- Actions: use, edit, duplicate, delete
+
+### Account & Settings
+- API key management (create, copy, revoke, regenerate)
+- BYOK overrides: LiveKit credentials, SIP trunk ID
+- Notification settings: email address, preferences
+- Plan & usage: calls used this month, upgrade CTA
+
+---
+
+## Notification Flow (Planned)
+
+1. Call ends → `session_ended` webhook updates call record
+2. Post-call AI processing generates structured JSON (not yet built)
+3. Email sent to user:
+   - Subject: `Call with [+1234] completed — [disposition]`
+   - Body: 2–3 sentence summary + sentiment + agenda completion rate
+   - CTA: Link to call detail page on dashboard
+4. `loopback_get_call(callId)` in MCP returns the full call record
+
+---
+
+## Pricing Model (Planned — Not Implemented)
+
+Pricing is outcome-based — users buy bundles of connected calls, not minutes.
+
+| Plan | Calls/month | Features |
+|---|---|---|
+| Starter | 25 | Dashboard, email notifications, default agents, 30-day recording retention |
+| Growth | 150 | + BYOK keys, Slack notifications, priority support |
+| Enterprise | Custom | + Custom retention, SSO, SLA, dedicated support |
+
+**Billing rules:**
+- No answer / declined / failed to connect → free, no quota consumed
+- Call connected but interrupted → charged proportionally by connected minutes
+- Call completed → counts as one call against quota
+
+---
+
+## Out of Scope (v1)
 
 - Inbound calls
 - Real-time mid-call steering from Claude Code
 - Multi-language STT/TTS support
-- Persistent session storage (database, file system)
 - Custom output schemas
-- Concurrent multi-call sessions
-- Web dashboard or hosted UI
-- SaaS or hosted infrastructure mode
-- Non-Python SDKs in v1
-- Alternative telephony providers beyond Twilio in v1
+- Concurrent multi-call sessions (single process assumption)
+- Alternative telephony providers beyond Twilio
+- Slack notifications (v1.5)
+- Mobile app / push notifications (v2)
+- Longer recording retention tiers (Enterprise v2)
+- npx install flow (replaced by hosted Streamable HTTP MCP)
+
+---
 
 ## Further Notes
 
-- The CSAT use case is the v1 validation target. Document in, structured feedback JSON out — that proves the core loop works.
-- Clean module interfaces are essential for open source contributions. Each module should be independently useful and testable so contributors can swap providers without touching core orchestration.
-- The MCP server is the primary Claude Code integration surface. CLI exists for terminal operators. SDK exists for developers embedding Loopback in their own products.
+- The CSAT use case is the v1 validation target. Voice agent profile + outbound call → structured outcome JSON — that proves the core loop works. The missing piece is the post-call AI processing step.
+- The frontend is the immediate next priority. The backend provides everything the UI needs via REST API (`/api/docs` Swagger available).
+- The MCP server is production-ready for developer workflows. It already supports the full call placement and agent management flow.
+- Every design decision should default to: what does the operator need to act on this? Not: what's interesting technically.
