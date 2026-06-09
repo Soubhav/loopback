@@ -10,7 +10,6 @@ import {
   Users,
   CheckCircle2,
   Activity,
-  Radio,
   ChevronRight,
   Cpu,
   Globe,
@@ -84,7 +83,7 @@ function Nav() {
         <nav className="hidden md:flex items-center gap-7 text-sm text-muted-foreground">
           <a href="#how" className="hover:text-foreground transition-colors">How it works</a>
           <a href="#features" className="hover:text-foreground transition-colors">Features</a>
-          <a href="#pipelines" className="hover:text-foreground transition-colors">Pipelines</a>
+          <a href="#usecases" className="hover:text-foreground transition-colors">Use cases</a>
           <a href="#demo" className="hover:text-foreground transition-colors">Demo</a>
         </nav>
 
@@ -555,112 +554,147 @@ function FeatureColumn({
   );
 }
 
-// ─── Voice pipelines ─────────────────────────────────────────────────────────
+// ─── Use cases ───────────────────────────────────────────────────────────────
 
-function Pipelines() {
-  const pipelines = [
+function UseCases() {
+  const cases = [
     {
-      name: "OpenAI Realtime",
-      badge: "Default",
-      badgeColor: "oklch(0.72 0.22 290)",
-      icon: <Radio className="w-5 h-5" />,
-      desc: "Speech-to-speech in a single connection. Semantic VAD for natural turn detection. Lowest end-to-end latency of the three options.",
+      label: "Customer updates",
+      accent: "oklch(0.72 0.22 290)",
+      accentHex: "#a78bfa",
+      icon: <Users className="w-5 h-5" />,
+      headline: "Ask customers for an update — automatically.",
+      body: "After a delivery, milestone, or support resolution, Loopback calls your customer, asks the right questions, and returns structured feedback. No scheduling. No manual notes.",
       bullets: [
-        "Semantic VAD — no silence threshold tuning",
-        "Sub-second turn detection",
-        "Built-in noise handling",
+        "Post-project CSAT and NPS calls",
+        "Health checks on active accounts",
+        "Renewal risk signals, surfaced early",
       ],
-      requires: "OPENAI_API_KEY",
+      tool: "loopback_place_call",
+      args: `{ toPhoneNumber: "+1...",\n  agentId: "csat-agent" }`,
+      output: "sentiment · summary · agenda coverage",
     },
     {
-      name: "Ultravox",
-      badge: "Optional",
-      badgeColor: "oklch(0.72 0.15 160)",
+      label: "Team check-ins",
+      accent: "oklch(0.72 0.15 160)",
+      accentHex: "#34d399",
+      icon: <Activity className="w-5 h-5" />,
+      headline: "Replace recurring status meetings.",
+      body: "Define a check-in agent once — blockers, progress, dependencies. Trigger it for your whole team from Claude Code. Get a structured digest back instead of sitting in a call.",
+      bullets: [
+        "Weekly async standups, without the call",
+        "Blocker detection before the sprint ends",
+        "Structured digest delivered to your inbox",
+      ],
+      tool: "loopback_place_call",
+      args: `{ toPhoneNumber: "+1...",\n  agentId: "standup-agent" }`,
+      output: "blockers · key updates · follow-ups",
+    },
+    {
+      label: "Outreach & discovery",
+      accent: "oklch(0.65 0.18 30)",
+      accentHex: "#fb923c",
       icon: <Zap className="w-5 h-5" />,
-      desc: "Bundled STT + LLM + TTS over one connection. Ultravox handles the full voice pipeline — bring your model and voice config.",
+      headline: "Run structured conversations at scale.",
+      body: "Discovery calls, onboarding interviews, lead qualification — define the conversation guide once as a voice agent profile, then trigger as many calls as you need from a single command.",
       bullets: [
-        "One connection for STT, LLM, and TTS",
-        "Configurable model and voice",
-        "Language hint via sttLanguage",
+        "Sales discovery and qualification",
+        "Onboarding and intake interviews",
+        "Research calls with predefined agendas",
       ],
-      requires: "ULTRAVOX_API_KEY",
-    },
-    {
-      name: "LiveKit Inference",
-      badge: "Optional",
-      badgeColor: "oklch(0.65 0.18 30)",
-      icon: <Cpu className="w-5 h-5" />,
-      desc: "Classic STT → LLM → TTS pipeline with full model control. Choose any LiveKit Inference-compatible STT, LLM, and TTS independently.",
-      bullets: [
-        "Deepgram, Cartesia, Claude — your choice",
-        "Full extra_kwargs control per stage",
-        "Preemptive generation support",
-      ],
-      requires: "Provider-specific API keys",
+      tool: "loopback_place_call",
+      args: `{ toPhoneNumber: "+1...",\n  agentId: "discovery-agent" }`,
+      output: "qualification · next action · transcript",
     },
   ];
 
   return (
-    <section id="pipelines" className="py-28 border-t border-border">
+    <section id="usecases" className="py-28 border-t border-border">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionLabel>Voice pipelines</SectionLabel>
-        <h2 className="text-4xl font-bold tracking-tight mt-3 mb-5 max-w-xl">
-          Three paths to real-time voice. One config surface.
+        <SectionLabel>Use cases</SectionLabel>
+        <h2 className="text-4xl font-bold tracking-tight mt-3 mb-4 max-w-xl">
+          One command. A real conversation.
         </h2>
         <p className="text-muted-foreground text-lg mb-16 max-w-lg">
-          Pick your pipeline per call — or set a default in your agent profile.
-          Switch any time without changing your backend integration.
+          Create a voice agent in Claude Code or Cursor. Point it at a phone number.
+          Get structured output back — no meetings, no manual notes.
         </p>
 
         <div className="grid md:grid-cols-3 gap-5">
-          {pipelines.map((p) => (
+          {cases.map((c) => (
             <div
-              key={p.name}
-              className="rounded-2xl border border-border p-6 flex flex-col gap-4"
+              key={c.label}
+              className="rounded-2xl border border-border p-6 flex flex-col gap-5"
               style={{ background: "oklch(0.10 0.012 264)" }}
             >
-              {/* Header */}
-              <div className="flex items-start justify-between gap-2">
+              {/* Label + icon */}
+              <div className="flex items-center justify-between gap-2">
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: `${p.badgeColor}15`, color: p.badgeColor }}
+                  style={{ background: `${c.accent}18`, color: c.accent }}
                 >
-                  {p.icon}
+                  {c.icon}
                 </div>
                 <span
-                  className="text-xs font-semibold px-2 py-0.5 rounded-full mt-1"
-                  style={{ background: `${p.badgeColor}15`, color: p.badgeColor }}
+                  className="text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full"
+                  style={{ background: `${c.accent}14`, color: c.accent, border: `1px solid ${c.accent}28` }}
                 >
-                  {p.badge}
+                  {c.label}
                 </span>
               </div>
 
+              {/* Copy */}
               <div>
-                <h3 className="font-semibold text-base mb-2">{p.name}</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">{p.desc}</p>
+                <h3 className="font-semibold text-base mb-2 leading-snug">{c.headline}</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">{c.body}</p>
               </div>
 
+              {/* Bullets */}
               <ul className="space-y-1.5">
-                {p.bullets.map((b) => (
+                {c.bullets.map((b) => (
                   <li key={b} className="flex items-start gap-2 text-xs text-muted-foreground">
                     <CheckCircle2
                       className="w-3.5 h-3.5 mt-0.5 shrink-0"
-                      style={{ color: p.badgeColor }}
+                      style={{ color: c.accent }}
                     />
                     {b}
                   </li>
                 ))}
               </ul>
 
+              {/* MCP trigger snippet */}
               <div
-                className="mt-auto rounded-lg px-3 py-2 text-xs font-mono"
-                style={{ background: "oklch(0.08 0.01 264)", color: "oklch(0.56 0.02 264)" }}
+                className="rounded-xl p-3.5 font-mono text-[11px] leading-5 mt-auto"
+                style={{ background: "oklch(0.07 0.01 264)" }}
               >
-                Requires: <span className="text-foreground">{p.requires}</span>
+                <span style={{ color: "oklch(0.56 0.02 264)" }}>Tool: </span>
+                <span style={{ color: c.accent }}>{c.tool}</span>
+                <br />
+                <span style={{ color: "oklch(0.56 0.02 264)" }}>{"("}</span>
+                <span style={{ color: "oklch(0.75 0.17 60)" }}>{c.args}</span>
+                <span style={{ color: "oklch(0.56 0.02 264)" }}>{")"}</span>
+                <div
+                  className="mt-2 pt-2 text-[10px]"
+                  style={{ borderTop: "1px solid oklch(0.18 0.012 264)", color: "oklch(0.45 0.015 264)" }}
+                >
+                  returns → <span style={{ color: "oklch(0.62 0.15 160)" }}>{c.output}</span>
+                </div>
               </div>
             </div>
           ))}
         </div>
+
+        {/* Bottom note */}
+        <p
+          className="mt-10 text-center text-xs font-mono"
+          style={{ color: "oklch(0.42 0.015 264)" }}
+        >
+          All agents are defined and triggered from{" "}
+          <span style={{ color: "oklch(0.72 0.22 290)" }}>Claude Code</span>
+          {" "}or{" "}
+          <span style={{ color: "oklch(0.72 0.22 290)" }}>Cursor</span>
+          {" "}using 17 MCP tools — no web form, no separate dashboard required.
+        </p>
       </div>
     </section>
   );
@@ -860,7 +894,7 @@ function Footer() {
         <nav className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
           <a href="#how" className="hover:text-foreground transition-colors">How it works</a>
           <a href="#features" className="hover:text-foreground transition-colors">Features</a>
-          <a href="#pipelines" className="hover:text-foreground transition-colors">Pipelines</a>
+          <a href="#usecases" className="hover:text-foreground transition-colors">Use cases</a>
           <Link href="/login" className="hover:text-foreground transition-colors">Sign in</Link>
           <a href="mailto:demo@loopback.dev" className="hover:text-foreground transition-colors">Contact</a>
         </nav>
@@ -894,7 +928,7 @@ export default function LandingPage() {
       <PoweredBy />
       <HowItWorks />
       <Features />
-      <Pipelines />
+      <UseCases />
       <CodeDemo />
       <FinalCTA />
       <Footer />
